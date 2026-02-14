@@ -1,0 +1,15 @@
+body {
+  margin: 0;
+  height: 100vh;
+}
+
+.ant-dropdown-menu-title-content {
+    white-space: nowrap;
+}
+
+.msp-layout-standard .msp-layout-top,
+.msp-layout-standard .msp-layout-bottom,
+.msp-layout-standard .msp-layout-left,
+.msp-layout-standard .msp-layout-right {
+    display: none;
+}
