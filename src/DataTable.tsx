@@ -1,36 +1,25 @@
-import {LoadingOutlined, PercentageOutlined} from '@ant-design/icons'
-import {Button, Flex, Input, InputNumber, Progress, Result, Spin, Table, Tag} from 'antd'
+import {CheckOutlined, ExportOutlined, LoadingOutlined, PercentageOutlined} from '@ant-design/icons'
+import type {InputRef, TableColumnType} from 'antd'
+import {Button, Flex, Input, InputNumber, Progress, Result, Space, Spin, Table, Tag} from 'antd'
 import Papa, {type ParseResult} from 'papaparse'
 import {useEffect, useRef, useState} from 'react'
-import _, {camelCase} from 'lodash'
-import type {PredictionDetails} from "./types.ts";
-import type {InputRef, TableColumnType} from 'antd'
+import _, {camelCase, replace} from 'lodash'
+import type {PredictionDetails} from './types.ts'
 import type {InputNumberRef} from '@rc-component/input-number'
-import MolstarViewer from "./MolstarViewer.tsx";
+import MolstarViewer from './MolstarViewer.tsx'
 
 const percentageColors = [
     '#FF0000',
     '#FF4000',
     '#FF8000',
     '#FFBF00',
-    '#FFFF00',
+    '#FFD230',
     '#D4FF00',
     '#AAFF00',
     '#55FF00'
 ]
 
-const renderProbabilityView = (value: number) =>
-    <Progress percent={value} steps={10} size='small' strokeColor={percentageColors[Math.min(7, Math.round(value / 10))]}/>
-
-const renderMahomesView = (_: unknown, details: PredictionDetails) =>
-    <Flex gap='large'>
-        {details.mahomes2Prediction ?
-            <Tag style={{width: 100, textAlign: 'center'}} variant='outlined' color='green'>Catalytic</Tag> :
-            <Tag style={{width: 100, textAlign: 'center'}} variant='outlined' color='red'>Not Catalytic</Tag>}
-        {renderProbabilityView(details.mahomes2ProbCatalytic)}
-    </Flex>
-
-const DataTable = () => {
+const DataTable = ({darkMode}: {darkMode: boolean}) => {
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(false)
@@ -50,6 +39,8 @@ const DataTable = () => {
             transformHeader: camelCase,
             transform: (value: string, header: string) => {
                 switch(header) {
+                    case 'structureId':
+                        return value.split('-')[1]
                     case 'predZnCoord':
                         return value.split(',').map(parseFloat)
                     case 'zincsightProb':
@@ -57,6 +48,8 @@ const DataTable = () => {
                         return parseFloat(value)
                     case 'mahomes2Prediction':
                         return value === 'Catalytic'
+                    case 'ligandResiType':
+                        return replace(value, /\W/g, '').split('').sort().join('')
                 }
                 return value
             },
@@ -74,7 +67,7 @@ const DataTable = () => {
 
     if(loading) {
         return (
-            <Flex justify="center" align="center" style={{height: '100vh'}}>
+            <Flex justify='center' align='center' style={{height: '100vh'}}>
                 <Spin indicator={<LoadingOutlined style={{fontSize: 96}} spin/>}/>
             </Flex>
         )
@@ -82,7 +75,7 @@ const DataTable = () => {
 
     if(error) {
         return(
-            <Flex justify="center" align="center" style={{height: '100vh'}}>
+            <Flex justify='center' align='center' style={{height: '100vh'}}>
                 <Result status='error' title='Data temporarily unavailable'/>
             </Flex>
         )
@@ -92,11 +85,15 @@ const DataTable = () => {
         {
             key: 'structureId',
             dataIndex: 'structureId',
-            title: 'Structure',
+            title: 'UniProt accession',
+            sorter: (a, b) => a.structureId.localeCompare(b.structureId),
+            width: 220,
             filterDropdown: ({confirm, setSelectedKeys}) =>
                 <div style={{padding: 10}}>
                     <Input.Search
-                        ref={structureIdSearchInput} placeholder="Enter structure identifier"
+                        enterButton
+                        allowClear
+                        ref={structureIdSearchInput} placeholder='Enter structure identifier'
                         onSearch={value => {
                             setSelectedKeys(value.trim() ? [value] : [])
                             confirm()
@@ -117,29 +114,43 @@ const DataTable = () => {
             key: 'ligandResiType',
             dataIndex: 'ligandResiType',
             title: 'Binding Residues',
+            sorter: (a, b) => a.ligandResiType.localeCompare(b.ligandResiType),
+            width: 200,
+            onCell: () => ({style: {fontSize: 20, letterSpacing: 10}}),
             filters: _(data).map('ligandResiType').uniq().sortedUniq().map(value => ({value, text: value})).value(),
             onFilter: (value, record) => record.ligandResiType === value
         },
         {
             key: 'zincsightProb',
             dataIndex: 'zincsightProb',
-            title: 'ZincSight Probability', render: renderProbabilityView,
+            title: 'ZincSight %',
+            render: value => <Progress success={{percent: 0}} percent={value} steps={10} size='small' strokeColor={percentageColors[Math.min(7, Math.round(value / 10))]}/>,
+            width: 200,
+            sorter: (a, b) => a.zincsightProb - b.zincsightProb,
             filterDropdown: ({confirm, setSelectedKeys}) =>
-                <div style={{padding: 10}}>
+                <Space.Compact style={{padding: 10}}>
                     <InputNumber
                         ref={minProbabilityInput}
                         style={{width: 120}}
                         defaultValue={0}
                         min={0}
                         max={100}
-                        placeholder="Minimum"
+                        placeholder='Minimum'
                         suffix={<PercentageOutlined/>}
                         onPressEnter={() => {
                             setSelectedKeys(minProbabilityInput.current!.value ? [parseFloat(minProbabilityInput.current!.value)] : [])
                             confirm()
                         }}
                     />
-                </div>,
+                    <Button
+                        type='primary'
+                        icon={<CheckOutlined/>}
+                        onClick={() => {
+                            setSelectedKeys(minProbabilityInput.current!.value ? [parseFloat(minProbabilityInput.current!.value)] : [])
+                            confirm()
+                        }}
+                    />
+                </Space.Compact>,
             onFilter: (value, record) =>
                 record.zincsightProb >= (value as number),
             filterDropdownProps: {
@@ -153,22 +164,26 @@ const DataTable = () => {
         {
             key: 'mahomes2Prediction',
             dataIndex: 'mahomes2Prediction',
-            title: 'MAHOMES II Catalytic Prediction',
-            render: renderMahomesView,
+            title: 'MAHOMES II',
+            width: 180,
+            sorter: (a, b) => (a.mahomes2Prediction as unknown as number) - (b.mahomes2Prediction as unknown as number),
+            render: value => value ?
+                <Tag style={{width: 100, textAlign: 'center'}} variant='outlined' color='green'>Catalytic</Tag> :
+                <Tag style={{width: 100, textAlign: 'center'}} variant='outlined' color='red'>Not Catalytic</Tag>,
             filters: [{value: true, text: 'Catalytic'}, {value: false, text: 'Not Catalytic'}],
             onFilter: (value, record) => record.mahomes2Prediction === value
         },
         {
             key: 'actions',
             render: (_: unknown, details: PredictionDetails) =>
-                <Button onClick={() => setModalDetails(details)}>3D View</Button>
+                <Button icon={<ExportOutlined />} onClick={() => setModalDetails(details)}>3D View</Button>
         }
     ]
 
     return(
         <>
-            <Table columns={columns} dataSource={data}/>
-            <MolstarViewer details={modalDetails} onClose={() => setModalDetails(null)}/>
+            <Table columns={columns} dataSource={data} style={{maxWidth: 1000, margin: '30px auto'}}/>
+            <MolstarViewer darkMode={darkMode} details={modalDetails} onClose={() => setModalDetails(null)}/>
         </>
     )
 }

@@ -1,14 +1,16 @@
-import { useEffect, useRef } from 'react'
-import { createPluginUI } from 'molstar/lib/mol-plugin-ui'
-import { renderReact18 } from 'molstar/lib/mol-plugin-ui/react18'
-import 'molstar/lib/mol-plugin-ui/skin/light.scss';
+import {useEffect, useRef} from 'react'
+import {createPluginUI} from 'molstar/lib/mol-plugin-ui'
+import {renderReact18} from 'molstar/lib/mol-plugin-ui/react18'
 import {StructureElement} from 'molstar/lib/mol-model/structure/structure'
 import {compileIdListSelection} from 'molstar/lib/mol-script/util/id-list'
-import type {PluginUIContext} from "molstar/lib/mol-plugin-ui/context";
+import type {PluginUIContext} from 'molstar/lib/mol-plugin-ui/context'
 import type {PredictionDetails} from './types.ts'
-import {Modal} from "antd";
+import {Modal} from 'antd'
+import {ColorNames} from 'molstar/lib/mol-util/color/names'
+import lightCss from 'molstar/build/viewer/theme/light.css?url'
+import darkCss from 'molstar/build/viewer/theme/dark.css?url'
 
-const MolstarViewer = ({details, onClose}: {details: PredictionDetails | null, onClose: () => void}) => {
+const MolstarViewer = ({darkMode, details, onClose}: {darkMode: boolean, details: PredictionDetails | null, onClose: () => void}) => {
     const parentRef = useRef<HTMLDivElement>(null as unknown as HTMLDivElement);
     const pluginRef = useRef<PluginUIContext>(null);
 
@@ -19,10 +21,15 @@ const MolstarViewer = ({details, onClose}: {details: PredictionDetails | null, o
                 return
             }
 
+            (window.document.getElementById('molstarcss') as HTMLLinkElement).href = darkMode ? darkCss : lightCss
+
             const plugin = await createPluginUI({
                 target: parentRef.current,
-                render: renderReact18
+                render: renderReact18,
             });
+            if(darkMode) {
+                plugin.canvas3d?.setProps({renderer: {backgroundColor: ColorNames.black}})
+            }
             pluginRef.current = plugin;
 
             const [x, y, z] = details.predZnCoord
@@ -43,7 +50,7 @@ const MolstarViewer = ({details, onClose}: {details: PredictionDetails | null, o
                 'Zn'.padStart(2)
             ].join('')
 
-            const url = `https://alphafold.ebi.ac.uk/files/${details.structureId}.pdb`
+            const url = `https://alphafold.ebi.ac.uk/files/AF-${details.structureId}-F1-model_v6.pdb`
             const pdbRows = (await (await fetch(url)).text()).split('\n')
             const terIndex = pdbRows.findIndex(row => row.startsWith('TER'))
             pdbRows.splice(terIndex + 1, 0, pdbIon)

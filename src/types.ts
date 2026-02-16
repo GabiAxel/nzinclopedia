@@ -4,6 +4,5 @@ export interface PredictionDetails {
     ligandResiType: string
     zincsightProb: number
     predZnCoord: number[]
-    mahomes2ProbCatalytic: number
     mahomes2Prediction: boolean
 }
